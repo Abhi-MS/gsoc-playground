@@ -24,4 +24,4 @@ This repo:
 - Helps keep track of rough work that doesn't belong in PRs (yet)
 - Serves as a backup for experimental or one-off components
 
-Main project: [link-to-main-repo]
+Main project:(https://github.com/Abhi-MS/switchmap-ng)
