@@ -31,7 +31,7 @@ const mapOidToType = (oid: string | null) => {
   return "Unknown";
 };
 
-export default function DevicesTable() {
+export default function DevicesOverview() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -100,7 +100,13 @@ export default function DevicesTable() {
             return (
               <tr key={device.id}>
                 <td>
-                  <Link href={`/devices/${encodeURIComponent(device.id)}`}>
+                  <Link
+                    href={`/devices/${encodeURIComponent(
+                      device.id
+                    )}?sysName=${encodeURIComponent(
+                      device.sysName ?? device.hostname ?? ""
+                    )}`}
+                  >
                     {device.sysName || "-"}
                   </Link>
                 </td>
