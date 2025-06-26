@@ -13,6 +13,8 @@ It includes early tests, ideas, and quick references for features I'm building �
 - `topology/` — Trials for rendering topology graphs (D3, React Flow, layout tests)
 - `bandwidth/` — Experiments with Recharts for visualizing bandwidth usage
 - `components/` — Small UI component tests unrelated to charts or topology
+- `tables`— Table rendering and data manipulation experiments
+— `frontend` - UI scaffolding, and experiments
 - `notes/` — Setup instructions, useful commands, links, GSoC planning
 
 ---
