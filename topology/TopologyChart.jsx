@@ -127,42 +127,25 @@ const TopologyChart: React.FC<TopologyChartProps> = ({ zoneId }) => {
   useEffect(() => {
     if (!containerRef.current || graph.nodes.length === 0) return;
 
-    // Create new DataSets and save refs
     nodesData.current = new DataSet<Node>(graph.nodes);
     edgesData.current = new DataSet<Edge>(graph.edges);
 
-    const data = {
-      nodes: nodesData.current,
-      edges: edgesData.current,
-    };
-
-    networkRef.current = new Network(containerRef.current, data, options);
-
-    // Clustering logic
-    for (let i = 0; i < graph.nodes.length; i += 10) {
-      const clusterId = `cluster-${i}`;
-      const nodeRange = graph.nodes.slice(i, i + 10).map((n) => n.id);
-
-      networkRef.current.cluster({
-        joinCondition: (node) => nodeRange.includes(node.id),
-        clusterNodeProperties: {
-          label: `Group ${i}-${i + 9}`,
-          shape: "dot",
-          size: 35,
-          color: "rgba(255,165,0,0.6)",
-        },
-      });
-    }
-
+    networkRef.current = new Network(
+      containerRef.current,
+      {
+        nodes: nodesData.current,
+        edges: edgesData.current,
+      },
+      options
+    );
     networkRef.current.on("click", (params) => {
-      if (
-        params.nodes.length === 1 &&
-        networkRef.current?.isCluster(params.nodes[0])
-      ) {
-        networkRef.current.openCluster(params.nodes[0]);
+      if (params.nodes.length === 1) {
+        const nodeId = params.nodes[0];
+        window.location.href = `/devices/${nodeId}`;
       }
     });
 
+    // Node selection highlighting
     networkRef.current.on("selectNode", ({ nodes }) => {
       const selected = nodes[0];
       if (!nodesData.current || !edgesData.current) return;
@@ -189,6 +172,7 @@ const TopologyChart: React.FC<TopologyChartProps> = ({ zoneId }) => {
       });
     });
 
+    // Reset highlight on deselect
     networkRef.current.on("deselectNode", () => {
       if (!nodesData.current || !edgesData.current) return;
 
@@ -210,7 +194,7 @@ const TopologyChart: React.FC<TopologyChartProps> = ({ zoneId }) => {
   }, [graph]);
 
   useEffect(() => {
-    if (!searchTerm || !networkRef.current || !nodesData.current) return;
+    if (!searchTerm || !nodesData.current || !networkRef.current) return;
 
     const node = nodesData.current.get(searchTerm);
     if (!node) {
@@ -246,7 +230,7 @@ const TopologyChart: React.FC<TopologyChartProps> = ({ zoneId }) => {
       />
       <div
         ref={containerRef}
-        className="w-full h-[640px] border rounded shadow"
+        className="w-full h-[70vh] border rounded shadow"
       />
     </div>
   );
