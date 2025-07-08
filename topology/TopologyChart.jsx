@@ -13,7 +13,11 @@ interface TopologyChartProps {
   zoneId: string;
 }
 
-const TopologyChart: React.FC<TopologyChartProps> = ({ zoneId }) => {
+const TopologyChart: React.FC<TopologyChartProps> = ({
+  devices,
+  loading,
+  error,
+}) => {
   const [graph, setGraph] = useState<{ nodes: Node[]; edges: Edge[] }>({
     nodes: [],
     edges: [],
@@ -46,83 +50,45 @@ const TopologyChart: React.FC<TopologyChartProps> = ({ zoneId }) => {
     },
   };
 
-  const fetchZoneTopology = async () => {
-    try {
-      const response = await fetch(
-        "http://localhost:7000/switchmap/api/graphql",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            query: `
-            query GetZoneDevices($id: ID!) {
-              zone(id: $id) {
-                devices {
-                  edges {
-                    node {
-                      sysName
-                      l1interfaces {
-                        edges {
-                          node {
-                            cdpcachedeviceid
-                            cdpcachedeviceport
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          `,
-            variables: { id: zoneId },
-          }),
-        }
-      );
-
-      const result = await response.json();
-      const nodesSet = new Set<string>();
-      const edgesArray: Edge[] = [];
-
-      const deviceEdges = result?.data?.zone?.devices?.edges ?? [];
-
-      for (const { node: device } of deviceEdges) {
-        const sysName = device?.sysName;
-        if (!sysName) continue;
-
-        nodesSet.add(sysName);
-
-        for (const { node: iface } of device?.l1interfaces?.edges ?? []) {
-          const target = iface?.cdpcachedeviceid;
-          const port = iface?.cdpcachedeviceport;
-
-          if (target) {
-            nodesSet.add(target);
-            edgesArray.push({
-              from: sysName,
-              to: target,
-              label: port,
-              color: "#BBBBBB",
-            });
-          }
-        }
-      }
-
-      const nodesArray: Node[] = Array.from(nodesSet).map((id) => ({
-        id,
-        label: id,
-        color: "#1E90FF",
-      }));
-
-      setGraph({ nodes: nodesArray, edges: edgesArray });
-    } catch (err) {
-      console.error("Failed to fetch topology:", err);
-    }
-  };
-
   useEffect(() => {
-    fetchZoneTopology();
-  }, [zoneId]);
+    if (!devices || devices.length === 0) {
+      setGraph({ nodes: [], edges: [] });
+      return;
+    }
+
+    const nodesSet = new Set<string>();
+    const edgesArray: Edge[] = [];
+
+    devices.forEach((device) => {
+      const sysName = device?.sysName;
+      if (!sysName) return;
+
+      nodesSet.add(sysName);
+
+      (device.l1interfaces?.edges ?? []).forEach(({ node: iface }) => {
+        const target = iface?.cdpcachedeviceid;
+        const port = iface?.cdpcachedeviceport;
+
+        if (target) {
+          nodesSet.add(target);
+          edgesArray.push({
+            from: sysName,
+            to: target,
+            label: port,
+            color: "#BBBBBB",
+          });
+        }
+      });
+    });
+
+    const nodesArray: Node[] = Array.from(nodesSet).map((id) => ({
+      id,
+      label: id,
+      color: "#1E90FF",
+    }));
+
+    setGraph({ nodes: nodesArray, edges: edgesArray });
+  }, [devices]);
 
   useEffect(() => {
     if (!containerRef.current || graph.nodes.length === 0) return;
