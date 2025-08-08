@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import HistoricalChart from "./HistoricalChart";
 import { TopologyChart } from "./TopologyChart";
 import { DeviceNode } from "../types/graphql/GetZoneDevices";
@@ -7,32 +7,6 @@ import { formatUptime } from "../utils/time";
 import { formatUnixTimestamp } from "../utils/timeStamp";
 import { truncateLines } from "../utils/stringUtils";
 
-const uptimeData = [
-  { timestamp: "2025-07-29 00:00", value: 99.98 },
-  { timestamp: "2025-07-29 01:00", value: 99.96 },
-  { timestamp: "2025-07-29 02:00", value: 99.92 },
-  { timestamp: "2025-07-29 03:00", value: 99.95 },
-  { timestamp: "2025-07-29 04:00", value: 99.9 },
-  { timestamp: "2025-07-29 05:00", value: 99.94 },
-];
-
-const cpuUsageData = [
-  { timestamp: "2025-07-29 00:00", value: 15.2 },
-  { timestamp: "2025-07-29 01:00", value: 22.5 },
-  { timestamp: "2025-07-29 02:00", value: 18.7 },
-  { timestamp: "2025-07-29 03:00", value: 25.3 },
-  { timestamp: "2025-07-29 04:00", value: 30.1 },
-  { timestamp: "2025-07-29 05:00", value: 19.8 },
-];
-
-const memoryUsageData = [
-  { timestamp: "2025-07-29 00:00", value: 45.0 },
-  { timestamp: "2025-07-29 01:00", value: 47.8 },
-  { timestamp: "2025-07-29 02:00", value: 49.5 },
-  { timestamp: "2025-07-29 03:00", value: 52.3 },
-  { timestamp: "2025-07-29 04:00", value: 55.0 },
-  { timestamp: "2025-07-29 05:00", value: 50.1 },
-];
 function MetadataRow({ label, value }: { label: string; value: string }) {
   return (
     <tr>
@@ -42,7 +16,84 @@ function MetadataRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function DeviceDetails({ device }: { device: DeviceNode }) {
+type DeviceDetailsProps = {
+  device: DeviceNode;
+};
+
+type DeviceData = {
+  lastPolled: number;
+  hostname: string;
+  sysUptime: number;
+};
+
+export function DeviceDetails({ device }: DeviceDetailsProps) {
+  const [uptimeData, setUptimeData] = useState<
+    { timestamp: string; value: number }[]
+  >([]);
+  const [cpuUsageData, setCpuUsageData] = useState<
+    { timestamp: string; value: number }[]
+  >([]);
+  const [memoryUsageData, setMemoryUsageData] = useState<
+    { timestamp: string; value: number }[]
+  >([]);
+
+  // Example GraphQL query as a string
+  const query = `
+    query {
+      devices {
+        edges {
+          node {
+            lastPolled
+            hostname
+            sysUptime
+          }
+        }
+      }
+    }
+  `;
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const res = await fetch("http://localhost:7000/switchmap/api/graphql", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query }),
+        });
+        const json = await res.json();
+        const devices: DeviceData[] = json.data.devices.edges.map(
+          ({ node }: { node: DeviceData }) => node
+        );
+
+        // Map devices to uptimeData format (example)
+        const mappedUptime = devices.map((d) => ({
+          timestamp: new Date(d.lastPolled * 1000)
+            .toISOString()
+            .slice(0, 16)
+            .replace("T", " "),
+          value: d.sysUptime / 1000000, // adjust scale as needed
+        }));
+
+        setUptimeData(mappedUptime);
+
+        // Placeholder for CPU and Memory usage - replace with real data similarly
+        setCpuUsageData([
+          { timestamp: "2025-07-29 00:00", value: 15.2 },
+          { timestamp: "2025-07-29 01:00", value: 22.5 },
+          // ...
+        ]);
+        setMemoryUsageData([
+          { timestamp: "2025-07-29 00:00", value: 45.0 },
+          { timestamp: "2025-07-29 01:00", value: 47.8 },
+          // ...
+        ]);
+      } catch (error) {
+        console.error("Error fetching devices data:", error);
+      }
+    }
+    fetchData();
+  }, []);
+
   return (
     <div className="p-4 w-[85vw] flex flex-col gap-4 h-full">
       <h2 className="text-xl font-semibold mb-2">Device Overview</h2>
@@ -98,14 +149,12 @@ export function DeviceDetails({ device }: { device: DeviceNode }) {
           color="#00b894"
           unit="%"
         />
-
         <HistoricalChart
           title="CPU Usage (%)"
           data={cpuUsageData}
           color="#0984e3"
           unit="%"
         />
-
         <HistoricalChart
           title="Memory Usage (%)"
           data={memoryUsageData}
