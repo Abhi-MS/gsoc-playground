@@ -1,10 +1,11 @@
 "use client";
-import React, { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { useSearchParams } from "next/navigation";
+import React, { useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { FiHome, FiMonitor, FiLink, FiBarChart2 } from "react-icons/fi";
-import ThemeToggle from "@/app/theme-toggle";
-import ConnectionDetails from "@/components/ConnectionDetails";
+import { ThemeToggle } from "@/app/theme-toggle";
+import { ConnectionDetails } from "@/app/components/ConnectionDetails";
+import { DeviceDetails } from "@/app/components/DeviceDetails";
+import { DeviceNode } from "@/app/types/graphql/GetZoneDevices";
 
 interface TabItem {
   label: string;
@@ -12,23 +13,120 @@ interface TabItem {
   icon: React.ReactElement;
 }
 
+const QUERY = `
+  query Device($id: ID!) {
+    device(id: $id) {
+      id
+      idxDevice
+      sysObjectid
+      sysUptime
+      sysDescription
+      sysName
+      hostname
+      lastPolled
+      l1interfaces {
+        edges {
+          node {
+            idxL1interface
+            idxDevice
+            ifname
+            nativevlan
+            ifoperstatus
+            tsIdle
+            ifspeed
+            duplex
+            ifalias
+            trunk
+            cdpcachedeviceid
+            cdpcachedeviceport
+            cdpcacheplatform
+            lldpremportdesc
+            lldpremsysname
+            lldpremsysdesc
+            lldpremsyscapenabled
+            macports {
+              edges {
+                node {
+                  macs {
+                    mac
+                    oui {
+                      organization
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
 export default function DevicePage() {
+  const params = useParams<{ id: string | string[] }>();
   const searchParams = useSearchParams();
   const sysName = searchParams.get("sysName") ?? "";
   const hostname = searchParams.get("hostname") ?? "";
-  const params = useParams<{ id: string | string[] }>();
-  // Ensure id is always a string
+
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  const [device, setDevice] = useState<DeviceNode | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!id) return;
+    const globalId = btoa(`Device:${id}`);
+    setLoading(true);
+    setError(null);
+
+    fetch(
+      process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT ||
+        "http://localhost:7000/switchmap/api/graphql",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: QUERY, variables: { id: globalId } }),
+      }
+    )
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((json) => {
+        if (json.errors) throw new Error(json.errors[0].message);
+        setDevice(json.data.device);
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, [id]);
 
   const tabs: TabItem[] = [
     {
       label: "Device Overview",
-      content: <div>Device Overview</div>,
+      content: loading ? (
+        <p>Loading...</p>
+      ) : error ? (
+        <p>Error: {error}</p>
+      ) : device ? (
+        <DeviceDetails device={device} />
+      ) : (
+        <p>No device data.</p>
+      ),
       icon: <FiMonitor className="icon" />,
     },
     {
       label: "Connection Details",
-      content: <ConnectionDetails deviceId={id || ""} />,
+      content: loading ? (
+        <p>Loading...</p>
+      ) : error ? (
+        <p>Error: {error}</p>
+      ) : device ? (
+        <ConnectionDetails device={device} />
+      ) : (
+        <p>No device data.</p>
+      ),
       icon: <FiLink className="icon" />,
     },
     {
@@ -37,9 +135,9 @@ export default function DevicePage() {
       icon: <FiBarChart2 className="icon" />,
     },
   ];
+
   const [activeTab, setActiveTab] = useState<number>(0);
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
-  const router = useRouter();
 
   return (
     <div className="flex h-screen">
@@ -58,7 +156,6 @@ export default function DevicePage() {
               : "flex flex-col gap-4 mb-8"
           }
         >
-          {/* Sidebar Toggle */}
           <button
             className="my-2 px-0 bg-transparent text-[1.2rem] self-center"
             onClick={() => setSidebarOpen((open) => !open)}
@@ -70,9 +167,9 @@ export default function DevicePage() {
         </div>
         <div className="flex flex-col items-center">
           <h1
-            className={`px-4 py-3 text-[1.2rem] max-w-[150px] break-all whitespace-normal overflow-hidden
-  
- ${!sidebarOpen ? "hidden" : ""}`}
+            className={`px-4 py-3 text-[1.2rem] max-w-[150px] break-all whitespace-normal overflow-hidden ${
+              !sidebarOpen ? "hidden" : ""
+            }`}
           >
             {sysName || hostname || "Unnamed Device"}
           </h1>
@@ -82,8 +179,9 @@ export default function DevicePage() {
             <button
               key={tab.label}
               onClick={() => setActiveTab(idx)}
-              className={`bg-transparent px-4 py-3 font-normal text-left text-base
- ${activeTab === idx ? "bg-[var(--select-bg)]" : ""}`}
+              className={`bg-transparent px-4 py-3 font-normal text-left text-base ${
+                activeTab === idx ? "bg-[var(--select-bg)]" : ""
+              }`}
             >
               <span className="flex flex-row gap-4">
                 {tab.icon}
@@ -96,7 +194,6 @@ export default function DevicePage() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col relative" style={{ width: "80vw" }}>
-        {/* Home Icon at Top Right */}
         <button
           onClick={() => router.push("/")}
           aria-label="Go to home"

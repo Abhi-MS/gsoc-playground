@@ -1,7 +1,24 @@
 "use client";
 
-import { ZoneEdge } from "@/types/graphql/GetZoneDevices";
+import { ZoneEdge } from "@/app/types/graphql/GetZoneDevices";
 import { useEffect, useState, useRef } from "react";
+/**
+ * ZoneDropdown component allows users to select a zone from a dropdown list.
+ * It fetches the available zones from the API and manages the selected zone state.
+ *
+ * @remarks
+ * This component is designed for client-side use only because it relies on
+ * the `useEffect` hook for fetching data and managing state.
+ * It also handles click events outside the dropdown to close it.
+ *
+ * @returns The rendered component.
+ *
+ * @see {@link Zone} for the structure of a zone.
+ * @see {@link ZoneDropdownProps} for the props used by the component.
+ * @see {@link useState} for managing the selected zone state.
+ * @see {@link useEffect} for fetching zones and handling side effects.
+ * @see {@link useRef} for managing the dropdown reference to handle outside clicks.
+ */
 
 type Zone = { idxZone: string; id: string };
 
@@ -10,10 +27,7 @@ type ZoneDropdownProps = {
   onChange: (zoneId: string) => void;
 };
 
-export default function ZoneDropdown({
-  selectedZoneId,
-  onChange,
-}: ZoneDropdownProps) {
+export function ZoneDropdown({ selectedZoneId, onChange }: ZoneDropdownProps) {
   const [zones, setZones] = useState<Zone[]>([]);
   const [open, setOpen] = useState<boolean>(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -25,11 +39,14 @@ export default function ZoneDropdown({
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch("http://localhost:7000/switchmap/api/graphql", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            query: `  
+        const res = await fetch(
+          process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT ||
+            "http://localhost:7000/switchmap/api/graphql",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              query: `  
               {  
                 zones {  
                   edges {  
@@ -41,8 +58,9 @@ export default function ZoneDropdown({
                 }  
               }  
             `,
-          }),
-        });
+            }),
+          }
+        );
         if (!res.ok) {
           throw new Error(`Network error: ${res.status}`);
         }

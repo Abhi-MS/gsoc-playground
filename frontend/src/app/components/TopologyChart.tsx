@@ -1,7 +1,7 @@
 "use client";
 
-import { DeviceNode } from "@/types/graphql/GetZoneDevices";
-import React, { useState, useEffect, useRef } from "react";
+import { DeviceNode } from "@/app/types/graphql/GetZoneDevices";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Network,
   DataSet,
@@ -10,25 +10,40 @@ import {
   Options,
 } from "vis-network/standalone/esm/vis-network";
 import { useTheme } from "next-themes";
-import { formatUptime } from "@/utils/time";
-import { truncateLines } from "@/utils/stringUtils";
+import { formatUptime } from "@/app/utils/time";
+import { useRouter } from "next/navigation";
+/**
+ * Renders a network topology chart using vis-network based on the given devices.
+ *
+ * @param {TopologyChartProps} props - The properties for the topology chart.
+ * @param {Device[]} props.devices - Array of device objects representing nodes.
+ * @param {boolean} props.loading - Loading state flag.
+ * @param {Error | null} props.error - Error state, if any.
+ *
+ * @returns {JSX.Element} A React component rendering the network graph visualization.
+ */
 
 interface TopologyChartProps {
   devices: DeviceNode[];
   loading: boolean;
   error: string | null;
+  zoomView?: boolean;
+  clickToUse?: boolean;
 }
 
-export default function TopologyChart({
+export function TopologyChart({
   devices,
   loading,
   error,
+  zoomView,
+  clickToUse,
 }: TopologyChartProps) {
   // React state to hold current graph structure: array of nodes and edges
   const [graph, setGraph] = useState<{ nodes: Node[]; edges: Edge[] }>({
     nodes: [],
     edges: [],
   });
+  const router = useRouter();
   // State to track the current search input (used for node filtering/highlighting)
   const [inputTerm, setInputTerm] = useState("");
   // State to hold the search term for highlighting nodes
@@ -41,7 +56,7 @@ export default function TopologyChart({
   // Reference to the actual vis-network instance (used for calling methods like focus, fit, etc.)
   const networkRef = useRef<Network | null>(null);
   // DataSets are vis-network's internal reactive data structures for nodes and edges
-  // These allow you to dynamically add, update, or remove nodes/edges without recreating the network
+  // These allow to dynamically add, update, or remove nodes/edges without recreating the network
   const nodesData = useRef<DataSet<Node> | null>(null);
   const edgesData = useRef<DataSet<Edge> | null>(null);
   // Theme context to determine if dark mode is enabled
@@ -59,42 +74,45 @@ export default function TopologyChart({
   // Note: vis-network options are initialized once and do not auto-update on theme change.
   // To support dynamic theme switching, update network options manually when `theme` changes.
   const isDark = theme === "dark";
-  const options: Options = {
-    clickToUse: true,
-    layout: { hierarchical: false },
-    physics: {
-      enabled: true,
-      solver: "barnesHut",
-      stabilization: { iterations: 100, updateInterval: 25 },
-    },
-    edges: {
-      color: isDark ? "#888" : "#BBB",
-      width: 1,
-      arrows: {
-        to: {
-          enabled: false, // Disable arrows by default
+  const options: Options = useMemo(
+    () => ({
+      clickToUse: clickToUse ?? true, // Use passed clickToUse prop or default to true
+      layout: { hierarchical: false },
+      physics: {
+        enabled: true,
+        solver: "barnesHut",
+        stabilization: { iterations: 100, updateInterval: 25 },
+      },
+      edges: {
+        color: isDark ? "#888" : "#BBB",
+        width: 1,
+        arrows: {
+          to: {
+            enabled: false, // Disable arrows by default
+          },
         },
       },
-    },
-    nodes: {
-      shape: "dot",
-      size: 15,
-      color: isDark ? "#4A90E2" : "#1E90FF",
-      font: {
-        size: 12,
-        color: isDark ? "#fff" : "black",
-        strokeColor: isDark ? "#081028" : "white",
-        strokeWidth: 2,
+      nodes: {
+        shape: "dot",
+        size: 15,
+        color: isDark ? "#4A90E2" : "#1E90FF",
+        font: {
+          size: 12,
+          color: isDark ? "#fff" : "black",
+          strokeColor: isDark ? "#081028" : "white",
+          strokeWidth: 2,
+        },
       },
-    },
-    interaction: {
-      hover: true,
-      tooltipDelay: 100,
-      dragNodes: true,
-      zoomView: true,
-      selectConnectedEdges: false,
-    },
-  };
+      interaction: {
+        hover: true,
+        tooltipDelay: 100,
+        dragNodes: true,
+        zoomView: zoomView ?? true, // Use passed interaction options or default to true
+        selectConnectedEdges: false,
+      },
+    }),
+    [isDark]
+  );
 
   useEffect(() => {
     /**
@@ -166,11 +184,12 @@ export default function TopologyChart({
         }
       );
     });
-    function htmlTitle(html: string) {
+    function htmlTitle(html: string): HTMLElement {
       const container = document.createElement("div");
       container.innerHTML = html;
       return container;
     }
+
     // Create nodes array from devices
     // Each node has an `id`, `label`, `color`, and custom `title
     const nodesArray: Node[] = devices.map((device) => ({
@@ -179,26 +198,27 @@ export default function TopologyChart({
       color: "#1E90FF",
       idxDevice: device.idxDevice?.toString(), // custom field for navigation
       title: htmlTitle(
-        `<div style="display: flex; align-items: left; gap: 1rem;"><div>
-    ${device.sysName ?? "Unknown"}<br>
-    ${device.hostname ?? "N/A"}
+        `
+    <div style="display: flex; align-items: flex-start; gap: 1rem;">
+      <div>
+        ${device.sysName ?? "Unknown"}<br>
+        Hostname: ${device.hostname ?? "N/A"}
+      </div>
+      <div style="font-size: 2em;">
+        ${
+          typeof device.sysUptime === "number" && device.sysUptime > 0
+            ? "🟢"
+            : "🔴"
+        }
+      </div>
     </div>
-    <h1>
-  <span style="display: inline-block; font-size: 2em;">
-    ${device.sysUptime && device.sysUptime > 0 ? "🟢" : "🔴"}
-  </span>
-</h1>
-
-    </div><br>
-    <h1 style="margin: 0; font-size: 1.2em; font-weight: bold; color: white;">
-  ${formatUptime(device.sysUptime) ?? "N/A"}
-  <span style="font-size: 0.4em; font-weight: normal;">Uptime</span>
-</h1>
-
+    <div style="margin-top: 0.5rem; font-size: 1.2em; font-weight: bold; color: white;">
+      ${formatUptime(device.sysUptime) ?? "N/A"}
+      <span style="font-size: 0.4em; font-weight: normal;">Uptime</span>
+    </div>
   `.trim()
-      ), // Tooltip content (HTML-safe string)
+      ),
     }));
-    // To add descirption to nodes, we can use  Description: ${truncateLines(device.sysDescription ?? "N/A")}
     // Add extra nodes that are not in the current zone
     // These nodes are added with a different color and a tooltip
     // indicating they are not in the current zone
@@ -207,12 +227,39 @@ export default function TopologyChart({
         id: sysName,
         label: sysName,
         color: "#383e44ff",
-        title: "Device not in current zone",
       });
     });
-    // Set the initial graph state with nodes and edges
+    // Clean up DOM elements in node titles
+    initialGraph.current?.nodes?.forEach((node) => {
+      if (
+        node.title instanceof HTMLElement &&
+        typeof node.title.remove === "function"
+      ) {
+        node.title.remove();
+      }
+    });
+    // Clean up DOM elements in edge titles
+    initialGraph.current?.edges?.forEach((edge) => {
+      if (
+        edge.title instanceof HTMLElement &&
+        typeof edge.title.remove === "function"
+      ) {
+        edge.title.remove();
+      }
+    });
+
+    // Set the new graph
     initialGraph.current = { nodes: nodesArray, edges: edgesArray };
     setGraph({ nodes: nodesArray, edges: edgesArray });
+
+    if (networkRef.current) {
+      networkRef.current.fit();
+      networkRef.current.moveTo({
+        position: { x: 0, y: 0 },
+        scale: 1,
+        animation: true,
+      });
+    }
   }, [devices]);
 
   useEffect(() => {
@@ -241,7 +288,7 @@ export default function TopologyChart({
         const url = `/devices/${encodeURIComponent(
           idxDevice
         )}?sysName=${encodeURIComponent(sysName)}#devices-overview`;
-        window.location.href = url;
+        router.push(url);
       }
     });
 
@@ -307,10 +354,6 @@ export default function TopologyChart({
         id: params.edge,
         arrows: { to: { enabled: true, scaleFactor: 0.5 } },
       });
-      // const tooltip = document.querySelector(".vis-tooltip") as HTMLElement;
-      // if (tooltip) {
-      //   tooltip.style.background = "transparent !important";
-      // }
     });
 
     networkRef.current.on("blurEdge", (params) => {
@@ -445,13 +488,14 @@ export default function TopologyChart({
   if (error) return <p>Error loading topology: {error}</p>;
 
   return (
-    <div>
-      <h2 className="text-xl font-semibold mb-2">Network Topology</h2>
-      <div className="flex mb-2 w-full gap-4 flex-wrap justify-between">
-        {/* Wrap form and dropdown in relative container */}
-        <div className="relative max-w-sm flex-grow">
+    <div className="topology-chart-container">
+      <h2 className="text-xl font-semibold mb-2 topology-title">
+        Network Topology
+      </h2>
+      <div className="flex mb-2 w-full gap-4 flex-wrap justify-between topology-controls">
+        <div className="relative max-w-sm flex-grow topology-search-container">
           <form
-            className="flex items-center gap-4"
+            className="flex items-center gap-4 topology-search-form"
             onSubmit={(e) => {
               e.preventDefault();
               setSearchTerm(inputTerm);
@@ -459,7 +503,7 @@ export default function TopologyChart({
             }}
           >
             <input
-              className="border p-2 rounded w-full"
+              className="border p-2 rounded w-full topology-search-input"
               type="text"
               placeholder="Search device..."
               value={inputTerm}
@@ -478,13 +522,13 @@ export default function TopologyChart({
                 setSuggestions(filtered);
               }}
             />
-            <button className="!border border-2 text-button rounded px-4 py-2 cursor-pointer transition-colors duration-300 align-middle h-fit">
+            <button className="border-2 text-button rounded px-4 py-2 cursor-pointer transition-colors duration-300 align-middle h-fit topology-search-btn">
               Search
             </button>
           </form>
 
           {suggestions.length > 0 && (
-            <ul className="absolute bg-bg shadow-md mt-1 rounded border w-full z-50">
+            <ul className="absolute bg-bg shadow-md mt-1 rounded border w-full z-50 topology-suggestions-list">
               {suggestions.map((suggestion, index) => (
                 <li
                   key={index}
@@ -493,7 +537,7 @@ export default function TopologyChart({
                     setInputTerm("");
                     setSuggestions([]);
                   }}
-                  className="cursor-pointer px-4 py-2 hover:bg-hover-bg"
+                  className="cursor-pointer px-4 py-2 hover:bg-hover-bg topology-suggestion-item"
                 >
                   {suggestion}
                 </li>
@@ -501,15 +545,16 @@ export default function TopologyChart({
             </ul>
           )}
         </div>
-
-        {/* Reset and Export buttons on the same line */}
-        <div className="flex items-center gap-4">
-          <button onClick={handleReset} className="reset-button">
+        <div className="flex items-center gap-4 topology-action-buttons">
+          <button
+            onClick={handleReset}
+            className="reset-button topology-reset-btn"
+          >
             Reset
           </button>
           <button
             onClick={handleExportImage}
-            className="text-white rounded px-4 py-2 cursor-pointer transition-colors duration-300"
+            className="text-white rounded px-4 py-2 cursor-pointer transition-colors duration-300 topology-export-btn"
             style={{ backgroundColor: "#CB3CFF" }}
           >
             Export
@@ -517,15 +562,18 @@ export default function TopologyChart({
         </div>
       </div>
 
-      <p className="mt-2 mb-2 text-sm text-gray-600 min-h-[1.5rem] h-[1.5rem]">
+      <p className="mt-2 mb-2 text-sm text-gray-600 h-fit topology-search-result">
         {searchResult || ""}
       </p>
 
       <div
         ref={containerRef}
-        className="w-full h-[70vh] border rounded shadow"
+        className="w-full h-[70vh] border rounded topology-network-canvas"
       />
-      <div style={{ margin: "0.25rem", fontSize: "0.85rem", color: "#666" }}>
+      <div
+        className="topology-instructions"
+        style={{ margin: "0.25rem", fontSize: "0.85rem", color: "#666" }}
+      >
         Single-click to select nodes, double-click to open device details.
       </div>
     </div>

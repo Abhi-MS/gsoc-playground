@@ -11,13 +11,27 @@ import {
   createColumnHelper,
   SortingState,
 } from "@tanstack/react-table";
-import {
-  DeviceNode,
-  InterfaceEdge,
-  InterfaceNode,
-  L1Interfaces,
-} from "@/types/graphql/GetZoneDevices";
-import { formatUptime } from "@/utils/time";
+import { DeviceNode, InterfaceEdge } from "@/app/types/graphql/GetZoneDevices";
+import { formatUptime } from "@/app/utils/time";
+import { InterfaceNode } from "@/app/types/graphql/GetDeviceInterfaces";
+
+/** * DevicesOverview component fetches and displays a list of devices in a table format.
+ * It supports sorting and filtering of device data.
+ * @remarks
+ * This component is designed for client-side use only because it relies on the `useEffect`
+ * hook for fetching data and managing state.
+ * It also uses the `useReactTable` hook from `@tanstack/react-table`
+ * for table management.
+ * @returns The rendered component.
+ * @see Device for the structure of device data.
+ * @see useEffect for fetching devices from the API.
+ * @see useState for managing the component state.
+ * @see useReactTable for table management.
+ * @see formatUptime for converting uptime from hundredths of seconds to a readable string.
+ * @see createColumnHelper for creating table columns.
+ * @see SortingState for managing sorting state in the table.
+ * @see getCoreRowModel, getFilteredRowModel, getSortedRowModel for table row models.
+ */
 
 interface DevicesOverviewProps {
   devices: DeviceNode[];
@@ -33,7 +47,7 @@ interface DeviceRow {
   link: string;
 }
 
-export default function DevicesOverview({
+export function DevicesOverview({
   devices,
   loading,
   error,
