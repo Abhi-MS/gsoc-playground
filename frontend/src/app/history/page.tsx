@@ -151,9 +151,9 @@ export default function DeviceHistoryChart() {
     }));
 
   return (
-    <div className="flex h-screen p-4">
+    <div className="flex h-screen p-4 max-w-full">
       <Sidebar />
-      <div className="p-4 w-full flex flex-col gap-6 h-full overflow-auto">
+      <div className="p-4 w-full max-w-full flex flex-col gap-6 h-full overflow-y-auto">
         <div>
           <h2 className="text-xl font-semibold">Device History</h2>
           <p className="text-sm text-gray-600">
@@ -162,7 +162,7 @@ export default function DeviceHistoryChart() {
           </p>
         </div>
 
-        <div className="relative max-w-sm ">
+        <div className="relative max-w-sm">
           <form className="flex items-center gap-4" onSubmit={onSubmit}>
             <input
               className="border p-2 rounded w-full"
@@ -210,53 +210,58 @@ export default function DeviceHistoryChart() {
           </p>
         )}
 
-        <div className="gap-8 w-[50vw] items-stretch justify-items-center p-4">
+        <div className="gap-8 w-[70vw] min-w-[600px] items-stretch p-4 mx-auto flex flex-col lg:flex-row lg:text-left text-center overflow-x-auto">
           {/* SysName Chart */}
-          <div className="w-full h-64 pl-6 flex flex-col">
-            <h3 className="text-lg font-semibold mb-4">SysName History</h3>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={sysNameChartData} margin={{ right: 20 }}>
-                <XAxis
-                  dataKey="timestamp"
-                  tickFormatter={(t) =>
-                    new Date(t).toLocaleDateString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                    })
-                  }
-                />
-                <YAxis
-                  type="number"
-                  domain={[0, sysNameCategories.length + 1]}
-                  ticks={Object.values(sysNameMap)}
-                  tickFormatter={(v) =>
-                    sysNameCategories.find((name) => sysNameMap[name] === v) ||
-                    ""
-                  }
-                  width={200}
-                  tick={{ textAnchor: "end" }}
-                />
-                <Tooltip
-                  labelFormatter={(label) => new Date(label).toLocaleString()}
-                  formatter={(_, __, props) => [
-                    props.payload.sysName,
-                    "SysName",
-                  ]}
-                />
-                <Line
-                  type="stepAfter"
-                  dataKey="sysNameNum"
-                  stroke="#3b82f6"
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          {sysNameChartData.length > 0 && (
+            <div className="w-full h-64 pl-6 flex flex-col">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={sysNameChartData} margin={{ right: 20 }}>
+                  <XAxis
+                    dataKey="timestamp"
+                    tickFormatter={(t) =>
+                      new Date(t).toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                      })
+                    }
+                  />
+                  <YAxis
+                    type="number"
+                    domain={[0, sysNameCategories.length + 1]}
+                    ticks={Object.values(sysNameMap)}
+                    tickFormatter={(v) =>
+                      sysNameCategories.find(
+                        (name) => sysNameMap[name] === v
+                      ) || ""
+                    }
+                    width={200}
+                    tick={{ textAnchor: "end" }}
+                  />
+                  <Tooltip
+                    labelFormatter={(label) => new Date(label).toLocaleString()}
+                    formatter={(_, __, props) => [
+                      props.payload.sysName,
+                      "SysName",
+                    ]}
+                  />
+                  <Line
+                    type="stepAfter"
+                    dataKey="sysNameNum"
+                    stroke="#3b82f6"
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+
+              <h3 className="text-lg font-semibold mt-4 text-center">
+                SysName History
+              </h3>
+            </div>
+          )}
 
           {/* Zone Chart */}
-          <div className="w-full h-64 pl-6 flex flex-col">
-            <h3 className="text-lg font-semibold mb-4">Zone History</h3>
-            {zoneChartData.length > 0 && (
+          {zoneChartData.length > 0 && (
+            <div className="w-full h-64 pl-6 flex flex-col">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={zoneChartData} margin={{ right: 20 }}>
                   <XAxis
@@ -293,8 +298,12 @@ export default function DeviceHistoryChart() {
                   />
                 </LineChart>
               </ResponsiveContainer>
-            )}
-          </div>
+
+              <h3 className="text-lg font-semibold mt-4 text-center">
+                Zone History
+              </h3>
+            </div>
+          )}
         </div>
       </div>
     </div>
