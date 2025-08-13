@@ -28,7 +28,18 @@ interface LineChartWrapperProps {
   height?: number;
   tooltipFormatter?: (value: any, name: string, props: any) => [any, string];
 }
-
+/** * LineChartWrapper is a reusable component for rendering line charts with Recharts.
+ * It abstracts the common configuration for line charts, including axes, tooltips, and lines.
+ * This allows for consistent styling and behavior across different charts in the application.
+ * @remarks
+ * This component is designed to be flexible and reusable, allowing developers to pass in data,
+ * x-axis keys, line configurations, and y-axis settings.
+ * It supports custom tooltips and titles, making it suitable for various charting needs.
+ *
+ * @returns The rendered line chart component.
+ *
+ * @see {@link ResponsiveContainer} for responsive layout.
+ * **/
 export function LineChartWrapper({
   data,
   xAxisKey,

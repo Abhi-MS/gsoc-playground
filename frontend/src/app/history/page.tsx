@@ -34,6 +34,26 @@ type DeviceNode = {
   zone?: string;
   lastPolled?: number; // UNIX timestamp in seconds
 };
+/**
+ * DeviceHistoryChart component visualizes device history data.
+ * It fetches device data from the GraphQL API, allows searching by hostname,
+ * and displays historical data in line charts.
+ * It includes a sidebar for navigation and a search input for filtering devices.
+ * * @remarks
+ * This component is designed to be responsive and user-friendly,
+ * allowing users to easily navigate through device history.
+ * It uses the `LineChartWrapper` component to render line charts for device history,
+ * showing both zone and sysName changes over time.
+ * * It supports searching for devices by hostname, with suggestions based on user input.
+ * It handles loading states and errors gracefully, providing feedback to the user.
+ * It is designed to be used in a client-side context, leveraging React hooks for state management and side effects.
+ *
+ * @returns Device history chart page that visualizes device history data.
+ * It fetches device data from the GraphQL API, allows searching by hostname,
+ *
+ * @see {@link Sidebar} for the sidebar navigation.
+ * @see {@link LineChartWrapper} for rendering line charts.
+ */
 
 export default function DeviceHistoryChart() {
   const [allDevices, setAllDevices] = useState<DeviceNode[]>([]);
