@@ -168,7 +168,7 @@ export default function DeviceHistoryChart() {
     <div className="flex h-screen max-w-full">
       <Sidebar />
       <div className="p-4 w-full max-w-full flex flex-col gap-6 h-full overflow-y-auto ml-10">
-        <div>
+        <div className="m-4 md:ml-0">
           <h2 className="text-xl font-semibold">Device History</h2>
           <p className="text-sm pt-2 text-gray-600">
             Visualizing the historical movement and status changes of devices
@@ -228,7 +228,7 @@ export default function DeviceHistoryChart() {
         )}
 
         <div className="overflow-auto">
-          <div className="gap-8 w-[70vw] min-w-[600px] items-stretch p-4 mx-auto flex flex-col lg:flex-row lg:text-left text-center ">
+          <div className="gap-8 w-[70vw] min-w-[600px] items-stretch p-4 mx-auto flex flex-col xl:flex-row xl:text-left text-center ">
             {/* Zone Chart */}
             {zoneChartData.length > 0 && (
               <LineChartWrapper
