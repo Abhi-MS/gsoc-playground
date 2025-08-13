@@ -153,7 +153,7 @@ export default function DeviceHistoryChart() {
   return (
     <div className="flex h-screen p-4 max-w-full">
       <Sidebar />
-      <div className="p-4 w-full max-w-full flex flex-col gap-6 h-full overflow-y-auto">
+      <div className="p-4 w-full max-w-full flex flex-col gap-6 h-full overflow-y-auto ml-10">
         <div>
           <h2 className="text-xl font-semibold">Device History</h2>
           <p className="text-sm text-gray-600">
@@ -163,7 +163,10 @@ export default function DeviceHistoryChart() {
         </div>
 
         <div className="relative max-w-sm">
-          <form className="flex items-center gap-4" onSubmit={onSubmit}>
+          <form
+            className="flex flex-col gap-4 md:flex-row md:items-center"
+            onSubmit={onSubmit}
+          >
             <input
               className="border p-2 rounded w-full"
               type="text"
