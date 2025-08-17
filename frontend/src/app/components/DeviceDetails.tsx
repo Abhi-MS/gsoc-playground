@@ -16,14 +16,21 @@ function MetadataRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-type DeviceDetailsProps = {
-  device: DeviceNode;
+// Type for device metrics returned from GraphQL
+type DeviceData = {
+  hostname: string;
+  uptime?: number;
+  sysUptime?: number;
+  cpuUtilization: number;
+  memoryUtilization: number;
+  timestamp: string; // ISO string from API
+  sysName?: string;
+  sysDescription?: string;
+  sysObjectid?: string;
 };
 
-type DeviceData = {
-  lastPolled: number;
-  hostname: string;
-  sysUptime: number;
+type DeviceDetailsProps = {
+  device: DeviceNode;
 };
 
 export function DeviceDetails({ device }: DeviceDetailsProps) {
@@ -36,16 +43,18 @@ export function DeviceDetails({ device }: DeviceDetailsProps) {
   const [memoryUsageData, setMemoryUsageData] = useState<
     { timestamp: string; value: number }[]
   >([]);
+  const [deviceMetrics, setDeviceMetrics] = useState<DeviceData | null>(null);
 
-  // Example GraphQL query as a string
   const query = `
     query {
-      devices {
+      allDeviceMetrics {
         edges {
           node {
-            lastPolled
             hostname
-            sysUptime
+            uptime
+            cpuUtilization
+            memoryUtilization
+            timestamp
           }
         }
       }
@@ -61,38 +70,52 @@ export function DeviceDetails({ device }: DeviceDetailsProps) {
           body: JSON.stringify({ query }),
         });
         const json = await res.json();
-        const devices: DeviceData[] = json.data.devices.edges.map(
+
+        const devices: DeviceData[] = json.data.allDeviceMetrics.edges.map(
           ({ node }: { node: DeviceData }) => node
         );
 
-        // Map devices to uptimeData format (example)
-        const mappedUptime = devices.map((d) => ({
-          timestamp: new Date(d.lastPolled * 1000)
-            .toISOString()
-            .slice(0, 16)
-            .replace("T", " "),
-          value: d.sysUptime / 1000000, // adjust scale as needed
-        }));
+        // all records for this device
+        const hostMetrics = devices.filter(
+          (d) => d.hostname === device.hostname
+        );
+        if (hostMetrics.length === 0) return;
 
-        setUptimeData(mappedUptime);
+        // sort by timestamp (oldest → newest)
+        hostMetrics.sort(
+          (a, b) =>
+            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        );
 
-        // Placeholder for CPU and Memory usage - replace with real data similarly
-        setCpuUsageData([
-          { timestamp: "2025-07-29 00:00", value: 15.2 },
-          { timestamp: "2025-07-29 01:00", value: 22.5 },
-          // ...
-        ]);
-        setMemoryUsageData([
-          { timestamp: "2025-07-29 00:00", value: 45.0 },
-          { timestamp: "2025-07-29 01:00", value: 47.8 },
-          // ...
-        ]);
+        setDeviceMetrics(hostMetrics[hostMetrics.length - 1]); // latest snapshot
+
+        setUptimeData(
+          hostMetrics.map((m) => ({
+            timestamp: new Date(m.timestamp).toISOString(),
+            value: (m.sysUptime ?? m.uptime ?? 0) / 1000000,
+          }))
+        );
+
+        setCpuUsageData(
+          hostMetrics.map((m) => ({
+            timestamp: new Date(m.timestamp).toISOString(),
+            value: m.cpuUtilization,
+          }))
+        );
+
+        setMemoryUsageData(
+          hostMetrics.map((m) => ({
+            timestamp: new Date(m.timestamp).toISOString(),
+            value: m.memoryUtilization,
+          }))
+        );
       } catch (error) {
         console.error("Error fetching devices data:", error);
       }
     }
+
     fetchData();
-  }, []);
+  }, [device.hostname]);
 
   return (
     <div className="p-4 w-[85vw] flex flex-col gap-4 h-full">
@@ -112,10 +135,10 @@ export function DeviceDetails({ device }: DeviceDetailsProps) {
             className={`table-auto w-fit m-top-0 text-left ${styles.tableCustom}`}
           >
             <tbody className="text-xs md:text-sm">
-              <MetadataRow label="Device Name" value={device.sysName} />
+              <MetadataRow label="Device Name" value={device.sysName ?? "-"} />
               <MetadataRow
                 label="Description"
-                value={truncateLines(device.sysDescription, {
+                value={truncateLines(device.sysDescription ?? "", {
                   lines: 3,
                   maxLength: 60,
                 })}
@@ -131,18 +154,29 @@ export function DeviceDetails({ device }: DeviceDetailsProps) {
               />
               <MetadataRow
                 label="Uptime"
-                value={formatUptime(device.sysUptime) ?? "N/A"}
+                value={
+                  formatUptime(
+                    device.sysUptime ?? deviceMetrics?.uptime ?? 0
+                  ) ?? "N/A"
+                }
               />
-              <MetadataRow label="System ID" value={device.sysObjectid} />
+              <MetadataRow
+                label="System ID"
+                value={device.sysObjectid ?? "-"}
+              />
               <MetadataRow
                 label="Time Last Polled"
-                value={formatUnixTimestamp(device.lastPolled)}
+                value={
+                  deviceMetrics
+                    ? formatUnixTimestamp(deviceMetrics.timestamp)
+                    : "-"
+                }
               />
             </tbody>
           </table>
         </div>
       </div>
-      <div className="p-4 w-full flex flex-row">
+      <div className="p-4 w-full flex flex-row gap-4">
         <HistoricalChart
           title="Uptime (%)"
           data={uptimeData}
