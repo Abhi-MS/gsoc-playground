@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import HistoricalChart from "./HistoricalChart";
+import { HistoricalChart } from "./HistoricalChart";
 import { TopologyChart } from "./TopologyChart";
 import { DeviceNode } from "../types/graphql/GetZoneDevices";
 import styles from "./DeviceDetails.module.css";

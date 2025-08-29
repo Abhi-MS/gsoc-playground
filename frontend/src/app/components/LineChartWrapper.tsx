@@ -98,5 +98,3 @@ export function LineChartWrapper({
     </div>
   );
 }
-
-export default LineChartWrapper;
