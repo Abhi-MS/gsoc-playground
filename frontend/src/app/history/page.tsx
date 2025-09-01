@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 
 import { Sidebar } from "../components/Sidebar";
-import LineChartWrapper from "../components/LineChartWrapper";
+import { LineChartWrapper } from "../components/LineChartWrapper";
 
 const QUERY = `
   query ZonesWithDevices {

@@ -9,6 +9,10 @@ global.fetch = vi.fn(() =>
     json: () => Promise.resolve(mockDeviceMetrics),
   })
 ) as any;
+// Mock TopologyChart so it doesn't create a real Network
+vi.mock("./TopologyChart", () => ({
+  TopologyChart: () => <div>Mocked TopologyChart</div>,
+}));
 
 describe("DeviceDetails", () => {
   it("renders device overview and metadata correctly", async () => {
@@ -32,12 +36,24 @@ describe("DeviceDetails", () => {
   it("toggles time range dropdown", async () => {
     render(<DeviceDetails device={mockDevice} />);
 
+    // initial button text
     const button = screen.getByRole("button", { name: /Past 1 day/i });
     fireEvent.click(button);
 
-    expect(screen.getByText("Past 1 week")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Past 1 week"));
-    expect(screen.queryByText("Past 1 week")).not.toBeInTheDocument();
+    // dropdown opens
+    const option = screen.getByText("Past 1 week");
+    expect(option).toBeInTheDocument();
+
+    // select "Past 1 week"
+    fireEvent.click(option);
+
+    // button text updates
+    expect(
+      screen.getByRole("button", { name: /Past 1 week/i })
+    ).toBeInTheDocument();
+
+    // dropdown closed
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 
   it("shows error message if custom range exceeds 180 days", async () => {
