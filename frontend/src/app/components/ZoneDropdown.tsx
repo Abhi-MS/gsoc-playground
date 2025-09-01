@@ -21,6 +21,7 @@ import { useEffect, useState, useRef } from "react";
  */
 
 type Zone = {
+  tsCreated: string;
   name: string;
   idxZone: string;
   id: string;
@@ -50,25 +51,26 @@ export function ZoneDropdown({ selectedZoneId, onChange }: ZoneDropdownProps) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              query: `  
-               {
-      events(last: 1) {
-        edges {
-          node {
-            zones {
-              edges {
-                node {
-                  id
-                  idxZone
-                  name
-                }
+              query: `
+  {
+    events(last: 2) {  # fetch last 10 events
+      edges {
+        node {
+          zones {
+            edges {
+              node {
+                tsCreated
+                id
+                idxZone
+                name
               }
             }
           }
         }
       }
     }
-            `,
+  }
+  `,
             }),
           }
         );
@@ -80,9 +82,12 @@ export function ZoneDropdown({ selectedZoneId, onChange }: ZoneDropdownProps) {
           throw new Error(json.errors[0].message);
         }
         const rawZones =
-          json.data.events.edges[0]?.node.zones.edges.map(
-            (edge: ZoneEdge) => edge.node
-          ) || [];
+          json.data.events.edges
+            .slice() // copy
+            .reverse() // start from last event
+            .find((edge: any) => edge.node.zones.edges.length > 0)
+            ?.node.zones.edges?.map((edge: ZoneEdge) => edge.node) || [];
+
         setZones(rawZones);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to fetch zones");
@@ -155,6 +160,9 @@ export function ZoneDropdown({ selectedZoneId, onChange }: ZoneDropdownProps) {
           />
         </svg>
       </button>
+      <p className="text-sm text-gray-700 pt-2 text-right">
+        {selected?.tsCreated || ""}
+      </p>
 
       {open && (
         <>
