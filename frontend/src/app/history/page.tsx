@@ -357,6 +357,7 @@ export default function DeviceHistoryChart() {
                 <div className="flex flex-row gap-2 items-start">
                   <input
                     type="date"
+                    aria-label="custom start date"
                     className="border p-2 rounded"
                     value={customStart}
                     onChange={(e) => {
@@ -382,6 +383,7 @@ export default function DeviceHistoryChart() {
                   </span>
                   <input
                     type="date"
+                    aria-label="custom end date"
                     className="border p-2 rounded"
                     value={customEnd}
                     onChange={(e) => {
