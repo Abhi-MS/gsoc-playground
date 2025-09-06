@@ -3,6 +3,19 @@ import React, { useState, useEffect, useMemo } from "react";
 
 import { Sidebar } from "../components/Sidebar";
 import { LineChartWrapper } from "../components/LineChartWrapper";
+/**
+ * DeviceHistoryChart component fetches and visualizes the historical movement and status changes of devices within the network.
+ * It includes search functionality, time range filtering, and displays charts for zone and sysName history.
+ * It handles loading and error states, and provides a user-friendly interface for exploring device history.
+ *
+ * @remarks
+ * This component is designed for client-side use only because it relies on the `useState` and `useEffect` hooks
+ * to manage state and handle side effects like data fetching. It also includes interactive elements like
+ * search input and dropdowns that require client-side rendering.
+ * @returns A React component that renders the device history chart interface.
+ * @see {@link Sidebar} for the sidebar component.
+ * @see {@link LineChartWrapper} for the chart rendering component.
+ */
 
 const QUERY = `
   query ZonesWithDevices {
@@ -27,24 +40,13 @@ const QUERY = `
   }
 `;
 
-/**
- * DeviceHistoryChart component visualizes the historical movement and status changes of devices within the network.
- * It fetches device data from a GraphQL endpoint and displays it in line charts.
- * @remarks
- * This component is designed to be used in a client-side context, as it relies on React hooks for state management and side effects.
- * It supports searching for devices by hostname and displays their history in two charts:
- * 1. Zone History: Shows the zone each device was in over time.
- * 2. SysName History: Shows the sysName of each device over time.
- * It also includes a search input with suggestions for device hostnames.
- * @returns The rendered device history chart component.
- */
-
 type DeviceNode = {
   idxDevice: number;
   hostname: string;
   sysName: string;
   zone?: string;
-  lastPolled?: number; // UNIX timestamp in seconds
+  lastPolled?: number | null;
+  lastPolledMs?: number | null;
 };
 
 type ZoneEdge = {
@@ -65,6 +67,20 @@ type GraphQLResponse = {
   };
   errors?: { message: string }[];
 };
+function toMs(value: number | string | null | undefined): number | null {
+  if (value == null) return null;
+  if (typeof value === "number") {
+    // treat < 1e12 as seconds
+    return value < 1e12 ? value * 1000 : value;
+  }
+  const ms = Date.parse(value);
+  return Number.isNaN(ms) ? null : ms;
+}
+// Parse a YYYY-MM-DD string as a local Date (avoids UTC parsing pitfalls)
+function parseDateOnlyLocal(yyyyMmDd: string): Date {
+  const [y, m, d] = yyyyMmDd.split("-").map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1);
+}
 
 export default function DeviceHistoryChart() {
   const [allDevices, setAllDevices] = useState<DeviceNode[]>([]);
@@ -116,10 +132,15 @@ export default function DeviceHistoryChart() {
 
         zones.forEach((zoneEdge) => {
           const zone = zoneEdge.node;
-          zone.devices.edges.forEach((deviceEdge) => {
+          const deviceEdges = zone?.devices?.edges ?? [];
+          deviceEdges.forEach((deviceEdge) => {
             const device = deviceEdge.node;
             if (device?.hostname && device?.idxDevice) {
-              devicesWithZones.push({ ...device, zone: zone.name });
+              devicesWithZones.push({
+                ...device,
+                zone: zone.name,
+                lastPolledMs: toMs(device.lastPolled ?? null),
+              });
             }
           });
         });
@@ -129,13 +150,15 @@ export default function DeviceHistoryChart() {
         let filteredDevices = devicesWithZones;
 
         if (range === "custom") {
-          const startDate = new Date(customStart!);
-          const endDate = new Date(customEnd!);
+          const start = parseDateOnlyLocal(customStart!);
+          start.setHours(0, 0, 0, 0);
+          const end = parseDateOnlyLocal(customEnd!);
+          end.setHours(23, 59, 59, 999);
 
           filteredDevices = devicesWithZones.filter((d) => {
-            if (!d.lastPolled) return false;
-            const date = new Date(d.lastPolled * 1000);
-            return date >= startDate && date <= endDate;
+            if (typeof d.lastPolledMs !== "number") return false;
+            const t = d.lastPolledMs;
+            return t >= start.getTime() && t <= end.getTime();
           });
         } else {
           let startDate: Date | null = null;
@@ -159,10 +182,10 @@ export default function DeviceHistoryChart() {
           }
 
           if (startDate) {
+            const startMs = startDate.getTime();
             filteredDevices = devicesWithZones.filter((d) => {
-              if (!d.lastPolled) return false;
-              const date = new Date(d.lastPolled * 1000);
-              return date >= startDate!;
+              if (typeof d.lastPolledMs !== "number") return false;
+              return d.lastPolledMs >= startMs;
             });
           }
         }
@@ -213,9 +236,9 @@ export default function DeviceHistoryChart() {
   // Sort using lastPolled (converted to ms)
   const history = allDevices
     .filter(
-      (d) => d.hostname === searchTerm && typeof d.lastPolled === "number"
+      (d) => d.hostname === searchTerm && typeof d.lastPolledMs === "number"
     )
-    .sort((a, b) => (a.lastPolled ?? 0) * 1000 - (b.lastPolled ?? 0) * 1000);
+    .sort((a, b) => (a.lastPolledMs ?? 0) - (b.lastPolledMs ?? 0));
 
   // SysName data
   const sysNameCategories = Array.from(new Set(history.map((h) => h.sysName)));
@@ -224,7 +247,7 @@ export default function DeviceHistoryChart() {
     sysNameMap[name] = i + 1;
   });
   const sysNameChartData = history.map((h) => ({
-    timestamp: new Date((h.lastPolled ?? 0) * 1000).toISOString(),
+    timestamp: new Date(h.lastPolledMs ?? 0).toISOString(),
     sysNameNum: sysNameMap[h.sysName],
     sysName: h.sysName,
   }));
@@ -240,7 +263,7 @@ export default function DeviceHistoryChart() {
   const zoneChartData = history
     .filter((h) => h.zone)
     .map((h) => ({
-      timestamp: new Date((h.lastPolled ?? 0) * 1000).toISOString(),
+      timestamp: new Date(h.lastPolledMs ?? 0).toISOString(),
       zoneNum: zoneMap[h.zone || ""],
       zoneName: h.zone || "",
     }));
@@ -299,10 +322,10 @@ export default function DeviceHistoryChart() {
           </div>
         </div>
       )}
-      <div className="flex h-screen md:m-8 overflow-y-auto">
+      <div className="flex h-screen overflow-y-auto">
         <Sidebar />
         <div className="p-4 w-full max-w-full flex flex-col gap-6 h-full overflow-y-auto mx-10">
-          <div className="m-4 md:ml-0">
+          <div className="m-4 lg:ml-0">
             <h2 className="text-xl font-semibold">Device History</h2>
             <p className="text-sm pt-2 text-gray-600">
               Visualizing the historical movement and status changes of devices
@@ -361,8 +384,17 @@ export default function DeviceHistoryChart() {
                     className="border p-2 rounded"
                     value={customStart}
                     onChange={(e) => {
-                      const start = new Date(e.target.value);
-                      const end = customEnd ? new Date(customEnd) : null;
+                      const start = parseDateOnlyLocal(e.target.value);
+                      start.setHours(0, 0, 0, 0);
+                      const end = customEnd
+                        ? parseDateOnlyLocal(customEnd)
+                        : null;
+                      if (end) end.setHours(23, 59, 59, 999);
+                      if (end && start > end) {
+                        setErrorMsg("Start date must be before end date.");
+                        setTimeout(() => setErrorMsg(""), 3000);
+                        return;
+                      }
 
                       if (
                         end &&
@@ -387,8 +419,17 @@ export default function DeviceHistoryChart() {
                     className="border p-2 rounded"
                     value={customEnd}
                     onChange={(e) => {
-                      const start = customStart ? new Date(customStart) : null;
-                      const end = new Date(e.target.value);
+                      const start = customStart
+                        ? parseDateOnlyLocal(customStart)
+                        : null;
+                      if (start) start.setHours(0, 0, 0, 0);
+                      const end = parseDateOnlyLocal(e.target.value);
+                      end.setHours(23, 59, 59, 999);
+                      if (start && end < start) {
+                        setErrorMsg("End date must be after start date.");
+                        setTimeout(() => setErrorMsg(""), 3000);
+                        return;
+                      }
 
                       if (
                         start &&

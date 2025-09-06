@@ -10,7 +10,7 @@ import {
   Options,
 } from "vis-network/standalone/esm/vis-network";
 import { useTheme } from "next-themes";
-import { formatUptime } from "../utils/time";
+import { formatUptime } from "@/app/utils/time";
 import { useRouter } from "next/navigation";
 /**
  * Renders a network topology chart using vis-network based on the given devices.
@@ -252,14 +252,8 @@ export function TopologyChart({
     initialGraph.current = { nodes: nodesArray, edges: edgesArray };
     setGraph({ nodes: nodesArray, edges: edgesArray });
 
-    if (networkRef.current) {
-      networkRef.current.fit();
-      networkRef.current.moveTo({
-        position: { x: 0, y: 0 },
-        scale: 1,
-        animation: true,
-      });
-    }
+    // (Lines 255–262 have been removed; the fit()/moveTo() reset now lives
+    // in the Network-creation useEffect so it always runs on a fresh instance.)
   }, [devices]);
 
   useEffect(() => {

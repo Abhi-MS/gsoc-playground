@@ -7,6 +7,28 @@ import { formatUptime } from "../utils/time";
 import { formatUnixTimestamp } from "../utils/timeStamp";
 import { truncateLines } from "../utils/stringUtils";
 
+/**
+ * DeviceDetails component displays detailed information about a specific device,
+ * including its metadata and historical performance charts.
+ * It fetches device metrics from a GraphQL API and allows users to filter
+ * the displayed data by predefined time ranges or a custom date range.
+ * It also includes a topology chart to visualize the device's connections.
+ * @remarks
+ * This component is designed for client-side use only because it relies on
+ * the `useEffect` hook for fetching data and managing state.
+ * It also uses `useMemo` to optimize rendering of static parts of the UI.
+ * @param device - The device object containing basic information like hostname and sysName.
+ * @returns The rendered device details component.
+ *
+ * @see {@link DeviceResponse} for the structure of the device data response.
+ * @see {@link DeviceNode} for the structure of the device data.
+ * @see {@link HistoricalChart} for the chart component used to display historical data.
+ * @see {@link TopologyChart} for the topology visualization component.
+ * @see {@link useState} for managing component state.
+ * @see {@link useEffect} for fetching data and handling side effects.
+ * @see {@link useMemo} for optimizing rendering of static UI parts.
+ */
+
 function MetadataRow({ label, value }: { label: string; value: string }) {
   return (
     <tr>
@@ -98,17 +120,16 @@ export function DeviceDetails({ device }: DeviceDetailsProps) {
             />
             <MetadataRow
               label="Uptime"
-              value={
-                formatUptime(device.sysUptime ?? deviceMetrics?.uptime ?? 0) ??
-                "N/A"
-              }
+              value={formatUptime(
+                device.sysUptime ?? (deviceMetrics?.uptime ?? 0) * 100
+              )}
             />
             <MetadataRow label="System ID" value={device.sysObjectid ?? "-"} />
             <MetadataRow
               label="Time Last Polled"
-              value={
-                deviceMetrics ? formatUnixTimestamp(device.lastPolled) : "-"
-              }
+              value={formatUnixTimestamp(
+                deviceMetrics?.lastPolled ?? device.lastPolled
+              )}
             />
           </tbody>
         </table>
@@ -118,8 +139,8 @@ export function DeviceDetails({ device }: DeviceDetailsProps) {
   );
 
   const query = `
-    query {
-      deviceMetrics(hostname: "${device.hostname}") {
+    query DeviceMetrics($hostname: String!) {
+      deviceMetrics(hostname: $hostname) {
         edges {
           node {
             hostname
@@ -134,25 +155,46 @@ export function DeviceDetails({ device }: DeviceDetailsProps) {
     `;
 
   useEffect(() => {
+    const ac = new AbortController();
     async function fetchData() {
       try {
-        const res = await fetch("http://localhost:7000/switchmap/api/graphql", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query }),
-        });
+        const res = await fetch(
+          process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT ||
+            "http://localhost:7000/switchmap/api/graphql",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              query,
+              variables: { hostname: device.hostname },
+            }),
+            signal: ac.signal,
+          }
+        );
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
         const json = await res.json();
+        if (json?.errors?.length) {
+          throw new Error(json.errors[0]?.message || "GraphQL error");
+        }
+        if (!json?.data?.deviceMetrics?.edges) {
+          throw new Error("Malformed response");
+        }
 
         const hostMetrics: DeviceData[] = json.data.deviceMetrics.edges.map(
           ({ node }: { node: DeviceData }) => node
         );
-
+        if (hostMetrics.length === 0) {
+          setUptimeData([]);
+          setCpuUsageData([]);
+          setMemoryUsageData([]);
+          setDeviceMetrics(null);
+          return;
+        }
         if (hostMetrics.length === 0) return;
 
-        hostMetrics.sort(
-          (a, b) =>
-            new Date(a.lastPolled).getTime() - new Date(b.lastPolled).getTime()
-        );
+        hostMetrics.sort((a, b) => Number(a.lastPolled) - Number(b.lastPolled));
 
         setDeviceMetrics(hostMetrics[hostMetrics.length - 1]);
 
@@ -160,31 +202,45 @@ export function DeviceDetails({ device }: DeviceDetailsProps) {
           hostMetrics.map((m) => {
             const uptime = Number(m.uptime);
             return {
-              lastPolled: new Date(m.lastPolled * 1000).toISOString(), // convert UNIX seconds to ISO
+              lastPolled: new Date(m.lastPolled * 1000).toISOString(),
               value: Number.isFinite(uptime) && uptime > 0 ? 1 : 0,
             };
           })
         );
 
         setCpuUsageData(
-          hostMetrics.map((m) => ({
-            lastPolled: new Date(m.lastPolled * 1000).toISOString(),
-            value: m.cpuUtilization,
-          }))
+          hostMetrics.map((m) => {
+            const cpu = Number.isFinite(Number(m.cpuUtilization))
+              ? Number(m.cpuUtilization)
+              : 0;
+            return {
+              lastPolled: new Date(Number(m.lastPolled) * 1000).toISOString(),
+              value: Math.max(0, Math.min(100, cpu)),
+            };
+          })
         );
 
         setMemoryUsageData(
-          hostMetrics.map((m) => ({
-            lastPolled: new Date(m.lastPolled * 1000).toISOString(),
-            value: m.memoryUtilization,
-          }))
+          hostMetrics.map((m) => {
+            const mem = Number.isFinite(Number(m.memoryUtilization))
+              ? Number(m.memoryUtilization)
+              : 0;
+            return {
+              lastPolled: new Date(Number(m.lastPolled) * 1000).toISOString(),
+              value: Math.max(0, Math.min(100, mem)),
+            };
+          })
         );
-      } catch (error) {
+      } catch (error: any) {
+        if (error.name === "AbortError") return; // ignore aborted fetch
         console.error("Error fetching device metrics:", error);
+        setErrorMsg("Failed to load device metrics.");
+        setTimeout(() => setErrorMsg(""), 3000);
       }
     }
 
     fetchData();
+    return () => ac.abort();
   }, [device.hostname]);
 
   const filterByRange = (data: { lastPolled: string; value: number }[]) => {
@@ -280,6 +336,11 @@ export function DeviceDetails({ device }: DeviceDetailsProps) {
                   const end = customRange.end
                     ? new Date(customRange.end)
                     : null;
+                  if (end && start > end) {
+                    setErrorMsg("Start date must be before end date.");
+                    setTimeout(() => setErrorMsg(""), 3000);
+                    return;
+                  }
                   if (
                     end &&
                     (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24) >
@@ -305,6 +366,11 @@ export function DeviceDetails({ device }: DeviceDetailsProps) {
                     ? new Date(customRange.start)
                     : null;
                   const end = new Date(e.target.value);
+                  if (start && end < start) {
+                    setErrorMsg("End date must be after start date.");
+                    setTimeout(() => setErrorMsg(""), 3000);
+                    return;
+                  }
 
                   if (
                     start &&
