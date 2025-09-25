@@ -9,6 +9,7 @@ export default function ConfigPage() {
   const [config, setConfig] = useState<Config | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState<"zones" | "snmp" | "advanced">(
     "zones"
   );
@@ -34,16 +35,24 @@ export default function ConfigPage() {
   const handleSave = async () => {
     if (!config) return;
     setSaving(true);
+    setSaved(false);
+
     try {
-      await fetch("http://localhost:7000/switchmap/api/config", {
+      const res = await fetch("http://localhost:7000/switchmap/api/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(config),
       });
-      alert("Config saved!");
+
+      if (!res.ok) throw new Error("Request failed");
+
+      setSaved(true);
+
+      // hide "Saved!" after 2s
+      setTimeout(() => setSaved(false), 2000);
     } catch (err) {
-      alert("Failed to save config");
       console.error(err);
+      // optional: show error inline instead of alert
     } finally {
       setSaving(false);
     }
@@ -55,8 +64,13 @@ export default function ConfigPage() {
   return (
     <div className="flex h-screen overflow-y-auto">
       <Sidebar />
-      <div className="p-6 w-full">
-        <h1 className="text-2xl font-bold mb-4">Switchmap Config</h1>
+      <div className="p-4 w-full max-w-full flex flex-col gap-6 h-full overflow-y-auto mx-10">
+        <div className="m-4 lg:ml-0">
+          <h1 className="text-xl font-semibold">Switchmap Config</h1>
+          <p className="text-sm pt-2 text-gray-600">
+            Manage and customize your Switchmap settings
+          </p>
+        </div>
 
         {/* Tabs */}
         <div className="flex border-b mb-4">
@@ -299,13 +313,24 @@ export default function ConfigPage() {
           </div>
         )}
 
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="px-4 py-2 bg-blue-600 text-white rounded mt-4"
-        >
-          {saving ? "Saving..." : "Save Config"}
-        </button>
+        <div className="flex justify-end items-center gap-3 mt-6">
+          {saving && <span className="text-sm text-gray-500">Saving…</span>}
+          {!saving && saved && (
+            <span className="text-sm text-green-600">Saved!</span>
+          )}
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className={`px-5 py-2 font-medium rounded-lg shadow transition
+      ${
+        saving
+          ? "bg-gray-400 cursor-not-allowed"
+          : "bg-blue-600 hover:bg-blue-700 text-white"
+      }`}
+          >
+            Save Config
+          </button>
+        </div>
       </div>
     </div>
   );
