@@ -90,12 +90,12 @@ export function Sidebar() {
         </li>
         <li>
           <Link
-            href="/settings"
+            href="/config"
             className="flex items-center gap-2 hover:text-primary"
             onClick={() => setOpen(false)}
           >
             <FiSettings className="icon" />
-            <span>Settings</span>
+            <span>Configuration</span>
           </Link>
         </li>
       </ul>
