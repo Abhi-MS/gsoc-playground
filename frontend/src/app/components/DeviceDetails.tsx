@@ -50,7 +50,7 @@ type DeviceData = {
   sysObjectid?: string;
 };
 
-type DeviceDetailsProps = {
+export type DeviceDetailsProps = {
   device: DeviceNode;
 };
 
@@ -139,20 +139,24 @@ export function DeviceDetails({ device }: DeviceDetailsProps) {
   );
 
   const query = `
-    query DeviceMetrics($hostname: String!) {
-      deviceMetrics(hostname: $hostname) {
-        edges {
-          node {
-            hostname
-            uptime
-            cpuUtilization
-            memoryUtilization
-            lastPolled
+      query SystemStats($hostname: String!) {
+        systemstats(filter: {
+          device: { hostname: { eq: $hostname } }
+        }) {
+          edges {
+            node {
+              idxSystemstat
+              cpu5min
+              memUsed
+              memFree
+              device {
+                hostname
+              }
+            }
           }
         }
       }
-    }
-    `;
+      `;
 
   useEffect(() => {
     const ac = new AbortController();
@@ -178,13 +182,28 @@ export function DeviceDetails({ device }: DeviceDetailsProps) {
         if (json?.errors?.length) {
           throw new Error(json.errors[0]?.message || "GraphQL error");
         }
-        if (!json?.data?.deviceMetrics?.edges) {
+        if (!json?.data?.systemstats?.edges) {
           throw new Error("Malformed response");
         }
 
-        const hostMetrics: DeviceData[] = json.data.deviceMetrics.edges.map(
-          ({ node }: { node: DeviceData }) => node
+        const hostMetrics: DeviceData[] = json.data.systemstats.edges.map(
+          ({ node }: any): DeviceData => ({
+            hostname: node.device?.hostname ?? "",
+            uptime: undefined,
+            cpuUtilization: Number(node.cpu5min) ?? 0,
+            memoryUtilization: Number(node.memUsed) ?? 0,
+            lastPolled: Number(node.idxSystemstat),
+            sysName: undefined,
+            sysDescription: undefined,
+            sysObjectid: undefined,
+          })
         );
+
+        // Sort now works with proper typing
+        hostMetrics.sort(
+          (a: DeviceData, b: DeviceData) => a.lastPolled - b.lastPolled
+        );
+
         if (hostMetrics.length === 0) {
           setUptimeData([]);
           setCpuUsageData([]);
@@ -192,10 +211,7 @@ export function DeviceDetails({ device }: DeviceDetailsProps) {
           setDeviceMetrics(null);
           return;
         }
-        if (hostMetrics.length === 0) return;
-
         hostMetrics.sort((a, b) => Number(a.lastPolled) - Number(b.lastPolled));
-
         setDeviceMetrics(hostMetrics[hostMetrics.length - 1]);
 
         setUptimeData(
@@ -249,7 +265,10 @@ export function DeviceDetails({ device }: DeviceDetailsProps) {
 
     if (selectedRange === 0 && customRange.start && customRange.end) {
       startDate = new Date(customRange.start);
+      startDate.setHours(0, 0, 0, 0);
       const endDate = new Date(customRange.end);
+      // include entire end day
+      endDate.setHours(23, 59, 59, 999);
       return data.filter(
         (d) =>
           new Date(d.lastPolled) >= startDate &&
@@ -392,32 +411,51 @@ export function DeviceDetails({ device }: DeviceDetailsProps) {
       </div>
 
       <div className="p-4 w-full min-w-[350px] flex flex-col xl:flex-row gap-4">
-        <HistoricalChart
-          title="System Status"
-          data={filterByRange(uptimeData)}
-          color="#00b894"
-          unit=""
-          yAxisConfig={{
-            domain: [0, 1],
-            ticks: [0, 1],
-            tickFormatter: (v) => (v === 1 ? "Up" : "Down"),
-            allowDecimals: false,
-          }}
-          lineType="stepAfter"
-        />
+        {filterByRange(uptimeData)?.length ? (
+          <HistoricalChart
+            title="System Status"
+            data={filterByRange(uptimeData)}
+            color="#00b894"
+            unit=""
+            yAxisConfig={{
+              domain: [0, 1],
+              ticks: [0, 1],
+              tickFormatter: (v) => (v === 1 ? "Up" : "Down"),
+              allowDecimals: false,
+            }}
+            lineType="stepAfter"
+          />
+        ) : (
+          <div className="flex items-center justify-center w-full h-64 rounded-xl border text-gray-500">
+            No uptime data available
+          </div>
+        )}
 
-        <HistoricalChart
-          title="CPU Usage (%)"
-          data={filterByRange(cpuUsageData)}
-          color="#0984e3"
-          unit="%"
-        />
-        <HistoricalChart
-          title="Memory Usage (%)"
-          data={filterByRange(memoryUsageData)}
-          color="#e17055"
-          unit="%"
-        />
+        {filterByRange(cpuUsageData)?.length ? (
+          <HistoricalChart
+            title="CPU Usage (%)"
+            data={filterByRange(cpuUsageData)}
+            color="#0984e3"
+            unit="%"
+          />
+        ) : (
+          <div className="flex items-center justify-center w-full h-64 rounded-xl border text-gray-500">
+            No CPU data available
+          </div>
+        )}
+
+        {filterByRange(memoryUsageData)?.length ? (
+          <HistoricalChart
+            title="Memory Usage (%)"
+            data={filterByRange(memoryUsageData)}
+            color="#e17055"
+            unit="%"
+          />
+        ) : (
+          <div className="flex items-center justify-center w-full h-64 rounded-xl border text-gray-500">
+            No memory data available
+          </div>
+        )}
       </div>
     </div>
   );
